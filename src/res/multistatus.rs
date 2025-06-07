@@ -22,8 +22,8 @@ pub struct DResponse {
 }
 
 impl DResponse {
-    pub fn into_prop(self) -> Prop {
-        self.prop_stat.prop
+    pub fn upwrap(self) -> (String, Prop) {
+        (self.href, self.prop_stat.prop)
     }
 }
 
@@ -49,6 +49,8 @@ pub struct Prop {
     pub resource_type: Option<ResourceType>,
     #[serde(rename = "current-user-privilege-set", default)]
     pub current_user_privilege_set: Option<CurrentUserPrivilegeSet>,
+    pub creationdate: Option<String>,
+    pub supportedlock: Option<SupportedLock>,
 }
 
 impl Prop {
@@ -61,8 +63,27 @@ impl Prop {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct SupportedLock {
+    pub lockentry: Option<LockEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LockEntry {
+    pub lockscope: Option<LockScope>,
+    pub locktype: Option<LockType>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LockScope {
+    pub exclusive: Option<()>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LockType {
+    pub write: Option<()>,
+}
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct ResourceType {
-    #[serde(default)]
-    collection: Option<String>,
+    collection: Option<()>,
 }

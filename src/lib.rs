@@ -1,14 +1,17 @@
-pub mod client;
-pub mod error;
-pub mod method;
-pub mod reader;
-pub mod res;
-pub mod url;
-pub use client::WebDAVClient;
+mod client;
+mod error;
+mod method;
+mod reader;
+mod res;
+
 pub use method::Method;
 pub use reqwest::header;
 pub use reqwest::{Body, IntoUrl, Request, RequestBuilder, Response, StatusCode, Url};
 
+pub use crate::client::*;
+pub use crate::reader::LazyResponseReader;
+pub use crate::res::*;
+pub use error::*;
 pub use quick_xml::DeError;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -13,7 +13,7 @@ impl CurrentUserPrivilegeSet {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrivilegeType {
     Read,
     Write,
@@ -79,27 +79,12 @@ impl Privilege {
 
 impl From<Vec<PrivilegeType>> for Privilege {
     fn from(value: Vec<PrivilegeType>) -> Self {
-        let mut read = false;
-        let mut write = false;
-        let mut read_acl = false;
-        let mut write_acl = false;
-        let mut all = false;
-        for ty in value {
-            match ty {
-                PrivilegeType::Read => read = true,
-                PrivilegeType::Write => write = true,
-                PrivilegeType::ReadAcl => read_acl = true,
-                PrivilegeType::WriteAcl => write_acl = true,
-                PrivilegeType::All => all = true,
-                PrivilegeType::None => (),
-            }
-        }
         Self {
-            read,
-            write,
-            read_acl,
-            write_acl,
-            all,
+            read: value.contains(&PrivilegeType::Read),
+            write: value.contains(&PrivilegeType::Write),
+            read_acl: value.contains(&PrivilegeType::ReadAcl),
+            write_acl: value.contains(&PrivilegeType::WriteAcl),
+            all: value.contains(&PrivilegeType::All),
         }
     }
 }

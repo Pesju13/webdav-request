@@ -9,6 +9,8 @@ pub enum Error {
     ResponseError(StatusCode),
     Utf8Error(std::str::Utf8Error),
     UrlError(url::ParseError),
+    InvalidResponse,
+    InvalidData(String),
 }
 
 impl Error {
@@ -58,6 +60,12 @@ impl From<url::ParseError> for Error {
     }
 }
 
+impl From<StatusCode> for Error {
+    fn from(value: StatusCode) -> Self {
+        Self::ResponseError(value)
+    }
+}
+
 impl std::fmt::Debug for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -65,8 +73,10 @@ impl std::fmt::Debug for Error {
             Self::RequestError(arg0) => arg0.fmt(f),
             Self::DeError(arg0) => arg0.fmt(f),
             Self::ResponseError(arg) => arg.fmt(f),
-            Error::Utf8Error(arg) => arg.fmt(f),
-            Error::UrlError(parse_error) => parse_error.fmt(f),
+            Self::Utf8Error(arg) => arg.fmt(f),
+            Self::UrlError(parse_error) => parse_error.fmt(f),
+            Self::InvalidResponse => f.write_str("InvalidResponse"),
+            Self::InvalidData(data) => f.write_str(&format!("Invalid data: {}", data)),
         }
     }
 }
@@ -80,6 +90,8 @@ impl std::fmt::Display for Error {
             Self::ResponseError(arg) => arg.fmt(f),
             Self::Utf8Error(arg) => arg.fmt(f),
             Self::UrlError(arg) => arg.fmt(f),
+            Self::InvalidResponse => f.write_str("Invalid response received"),
+            Self::InvalidData(data) => f.write_str(data),
         }
     }
 }

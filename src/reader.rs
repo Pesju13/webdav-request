@@ -1,11 +1,12 @@
 use crate::{RequestBuilder, Response};
 use std::{
     future::Future,
-    io,
+    io::{self},
     pin::{pin, Pin},
     task::Poll,
 };
 type ResponseStream = Box<dyn Unpin + Future<Output = reqwest::Result<Response>>>;
+
 pub struct LazyResponseReader {
     request: Option<RequestBuilder>,
     buf: Option<ResponseStream>,
@@ -43,7 +44,8 @@ impl tokio::io::AsyncRead for LazyResponseReader {
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<io::Result<()>> {
         let this = self.get_mut();
-        if let Some(request) = this.request.take() {
+        if this.request.is_some() {
+            let request = this.request.take().unwrap();
             this.buf = Some(Box::new(request.send()));
         }
         if let Some(send) = &mut this.buf {
@@ -51,20 +53,14 @@ impl tokio::io::AsyncRead for LazyResponseReader {
                 Poll::Ready(data) => match data {
                     Ok(response) => {
                         if !response.status().is_success() {
-                            return Poll::Ready(Err(io::Error::new(
-                                io::ErrorKind::Other,
+                            return Poll::Ready(Err(io::Error::other(
                                 response.status().to_string(),
                             )));
                         }
                         this.buf = None;
                         this.reader = Some(ResponseReader::new(response))
                     }
-                    Err(e) => {
-                        return Poll::Ready(Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            e.to_string(),
-                        )))
-                    }
+                    Err(e) => return Poll::Ready(Err(io::Error::other(e.to_string()))),
                 },
                 Poll::Pending => return Poll::Pending,
             }
@@ -131,10 +127,7 @@ impl tokio::io::AsyncRead for ResponseReader {
                         }
                     }
                     Poll::Ready(Err(err)) => {
-                        return Poll::Ready(Err(io::Error::new(
-                            std::io::ErrorKind::Other,
-                            err.to_string(),
-                        )));
+                        return Poll::Ready(Err(io::Error::other(err.to_string())));
                     }
                     Poll::Pending => return Poll::Pending,
                 }

@@ -27,6 +27,7 @@ impl Method {
             Inner::Delete => RMethod::DELETE,
             Inner::Patch => RMethod::PATCH,
             Inner::Propfind => RMethod::from_bytes("PROPFIND".as_bytes()).unwrap(),
+
             Inner::Custom(method) => method,
         }
     }
