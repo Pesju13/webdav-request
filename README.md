@@ -8,28 +8,25 @@
 
 `webdav-request` a lightweight webdav client library, based on [reqwest](https://crates.io/crates/reqwest).
 # WARNING
-This is a library under development and is not stable. 
+This is a library under development and is not stable.
 
 
 # Getting Started
 
-```rust 
-use webdav_request::WebDAVClient;
+```rust
+use webdav_request::DavClient;
 
 const WEBDAV_URL: &str = "https://your.webdav.com";
 const USERNAME: &str = "name";
 const PASSWORD: &str = "password";
 
 #[tokio::main]
-async fn main() -> webdav_request::error::Result<()> {
-    let client = WebDAVClient::new(USERNAME, PASSWORD)?;
-    let response = client.get(format!("{}/path/file", WEBDAV_URL)).await?;
-    if response.status().is_success() {
-        let _bytes = response.bytes().await?;
-        // TODO
-    }
+async fn main() -> webdav_request::Result<()> {
+    let client = DavClient::new(USERNAME, PASSWORD)?;
+    let mut collection = client.list(format!("{}/", WEBDAV_URL)).await?;
+    collection.set_relative_href(WEBDAV_URL)?;
+    println!("{:#?}", collection);
     Ok(())
 }
-
 
 ```
