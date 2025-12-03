@@ -1,6 +1,6 @@
 use super::{multistatus::MultiStatus, privilege::Privilege};
 
-#[deprecated = "Use `DavCollection` instead"]
+#[deprecated]
 #[derive(Default, Debug)]
 pub struct Collection {
     pub href: String,

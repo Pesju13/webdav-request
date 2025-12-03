@@ -1,7 +1,6 @@
 mod collection;
-mod dav_collection;
-pub use dav_collection::*;
+mod dav;
+pub use dav::*;
 pub mod privilege;
 pub use collection::*;
-mod multistatus;
-pub use multistatus::*;
+pub mod multistatus;

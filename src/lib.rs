@@ -8,6 +8,8 @@ pub use method::Method;
 pub use reqwest::header;
 pub use reqwest::{Body, IntoUrl, Request, RequestBuilder, Response, StatusCode, Url};
 
+#[allow(deprecated)]
+pub use crate::client::webdav_client::WebDAVClient;
 pub use crate::client::*;
 pub use crate::reader::LazyResponseReader;
 pub use crate::res::*;

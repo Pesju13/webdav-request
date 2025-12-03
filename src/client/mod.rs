@@ -1,16 +1,14 @@
 mod inner;
 use std::sync::Arc;
-
+pub(crate) mod webdav_client;
 use crate::method::Method;
+use crate::multistatus::MultiStatus;
 use crate::reader::LazyResponseReader;
-use crate::res::DavCollection;
-use crate::res::MultiStatus;
+use crate::DavItem;
 use crate::{header::HeaderMap, Body};
 use inner::InnerClient;
 use reqwest::header::{HeaderName, HeaderValue, CONTENT_TYPE};
-use reqwest::IntoUrl;
-use reqwest::Response;
-use reqwest::Url;
+use reqwest::{IntoUrl, Response, Url};
 const DEPTH: HeaderName = HeaderName::from_static("depth");
 const DEPTH_ONE: HeaderValue = HeaderValue::from_static("1");
 const RANGE: HeaderName = HeaderName::from_static("range");
@@ -27,71 +25,6 @@ const ALL_DROP: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
         <D:allprop/>
     </D:propfind>
 "#;
-
-#[deprecated = "Use `DavClient` instead"]
-#[derive(Default, Clone)]
-pub struct WebDAVClient {
-    inner: Arc<InnerClient>,
-}
-#[allow(deprecated)]
-unsafe impl Send for WebDAVClient {}
-
-#[allow(deprecated)]
-unsafe impl Sync for WebDAVClient {}
-
-macro_rules! into_url {
-    ($url:expr) => {
-        match $url.into_url() {
-            Ok(url) => url,
-            Err(e) => panic!("{e}"),
-        }
-    };
-}
-
-#[allow(deprecated)]
-impl WebDAVClient {
-    pub fn new(username: &str, password: &str) -> Result<Self, reqwest::Error> {
-        Ok(Self {
-            inner: Arc::new(InnerClient::new(username, password)?),
-        })
-    }
-    pub fn request(&self, method: Method, url: impl IntoUrl) -> WevDAVRequestBuilder {
-        WevDAVRequestBuilder::new(self.inner.clone(), into_url!(url), method)
-    }
-
-    #[inline(always)]
-    pub fn get(&self, url: impl IntoUrl) -> WevDAVRequestBuilder {
-        self.request(Method::GET, url)
-    }
-
-    #[inline(always)]
-    pub fn put(&self, url: impl IntoUrl) -> WevDAVRequestBuilder {
-        self.request(Method::PUT, url)
-    }
-
-    pub async fn list(
-        &self,
-        url: impl IntoUrl,
-    ) -> Result<crate::res::Collection, crate::error::Error> {
-        let response = self.all_propfind(url).await?;
-        if response.status().is_success() {
-            let xml = response.text().await?;
-            let multi_status = MultiStatus::parse(&xml)?;
-            Ok(crate::res::Collection::from(multi_status))
-        } else {
-            Err(crate::error::Error::ResponseError(response.status()))
-        }
-    }
-    #[inline(always)]
-    pub async fn all_propfind(&self, url: impl IntoUrl) -> crate::Result<Response> {
-        self.request(Method::PROPFIND, url.into_url()?)
-            .header(CONTENT_TYPE, APPLICATION_XML.clone())
-            .header(DEPTH.clone(), DEPTH_ONE.clone())
-            .body(ALL_DROP)
-            .send()
-            .await
-    }
-}
 
 #[derive(Default, Clone)]
 pub struct DavClient {
@@ -124,34 +57,14 @@ impl DavClient {
     }
 
     /// Lists the contents of a WebDAV collection (directory).
-    ///
-    /// This method sends a PROPFIND request with depth 1 to the specified URL
-    /// and parses the response into a DavCollection containing information
-    /// about the collection itself and its immediate children.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// async fn example(client: &DavClient) -> webdav_request::Result<(）> {
-    ///     let collection = client
-    ///         .list("https://example.com")
-    ///         .await?;
-    ///     for item in collection {
-    ///         println!("Found: {} ({})", item.name, if item.is_dir { "dir" } else { "file" });
-    ///     }
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn list(&self, url: impl IntoUrl) -> crate::Result<DavCollection> {
+    pub async fn list(&self, url: impl IntoUrl) -> crate::Result<Vec<DavItem>> {
         let url = url.into_url()?;
-        let response = self.all_propfind(url.clone()).await?;
+        let url_str = url.as_str().to_owned();
+        let response = self.all_propfind(url).await?;
         if response.status().is_success() {
             let xml = response.text().await?;
             let multi_status = MultiStatus::parse(&xml)?;
-            DavCollection::builder()
-                .status(multi_status)
-                .url(url)
-                .build()
+            DavItem::parse(multi_status, &url_str)
         } else {
             Err(response.status().into())
         }

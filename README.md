@@ -23,9 +23,8 @@ const PASSWORD: &str = "password";
 #[tokio::main]
 async fn main() -> webdav_request::Result<()> {
     let client = DavClient::new(USERNAME, PASSWORD)?;
-    let mut collection = client.list(format!("{}/", WEBDAV_URL)).await?;
-    collection.set_relative_href(WEBDAV_URL)?;
-    println!("{:#?}", collection);
+    let mut nodes = client.list(format!("{}/", WEBDAV_URL)).await?;
+    println!("{:#?}", nodes);
     Ok(())
 }
 
