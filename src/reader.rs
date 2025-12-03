@@ -9,7 +9,7 @@ type ResponseStream = Box<dyn Unpin + Future<Output = reqwest::Result<Response>>
 
 pub struct LazyResponseReader {
     request: Option<RequestBuilder>,
-    buf: Option<ResponseStream>,
+    stream: Option<ResponseStream>,
     reader: Option<ResponseReader>,
 }
 
@@ -22,7 +22,7 @@ impl From<ResponseStream> for LazyResponseReader {
     fn from(value: ResponseStream) -> Self {
         Self {
             request: None,
-            buf: Some(value),
+            stream: Some(value),
             reader: None,
         }
     }
@@ -31,24 +31,41 @@ impl LazyResponseReader {
     pub fn new(builder: RequestBuilder) -> Self {
         Self {
             request: Some(builder),
-            buf: None,
+            stream: None,
             reader: None,
         }
     }
 }
 impl Unpin for LazyResponseReader {}
+
+macro_rules! ready {
+    ($n:expr) => {
+        if ($n == 0) {
+            return Poll::Ready(Ok(()));
+        }
+    };
+    ($v1:expr, $v2:expr) => {
+        if ($v1 == $v2) {
+            return Poll::Ready(Ok(()));
+        }
+    };
+}
+
 impl tokio::io::AsyncRead for LazyResponseReader {
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<io::Result<()>> {
+        ready!(buf.remaining());
+
         let this = self.get_mut();
+
         if this.request.is_some() {
             let request = this.request.take().unwrap();
-            this.buf = Some(Box::new(request.send()));
+            this.stream = Some(Box::new(request.send()));
         }
-        if let Some(send) = &mut this.buf {
+        if let Some(send) = &mut this.stream {
             match Future::poll(Pin::new(send), cx) {
                 Poll::Ready(data) => match data {
                     Ok(response) => {
@@ -57,7 +74,7 @@ impl tokio::io::AsyncRead for LazyResponseReader {
                                 response.status().to_string(),
                             )));
                         }
-                        this.buf = None;
+                        this.stream = None;
                         this.reader = Some(ResponseReader::new(response))
                     }
                     Err(e) => return Poll::Ready(Err(io::Error::other(e.to_string()))),
@@ -65,9 +82,11 @@ impl tokio::io::AsyncRead for LazyResponseReader {
                 Poll::Pending => return Poll::Pending,
             }
         }
-        if let Some(r) = &mut this.reader {
-            return tokio::io::AsyncRead::poll_read(Pin::new(r), cx, buf);
+
+        if let Some(val) = &mut this.reader {
+            return Pin::new(val).poll_read(cx, buf);
         }
+
         Poll::Ready(Ok(()))
     }
 }
@@ -106,6 +125,7 @@ impl tokio::io::AsyncRead for ResponseReader {
         cx: &mut std::task::Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<io::Result<()>> {
+        ready!(buf.remaining());
         let this = self.get_mut();
         if let Some(res) = &mut this.inner {
             loop {
@@ -121,8 +141,14 @@ impl tokio::io::AsyncRead for ResponseReader {
                                 return Poll::Ready(Ok(()));
                             }
                         } else {
-                            buf.put_slice(&this.buf);
-                            this.buf.clear();
+                            let remain = buf.remaining();
+                            if this.buf.len() >= remain {
+                                buf.put_slice(&this.buf[..remain]);
+                                this.buf = this.buf[remain..].to_owned();
+                            } else {
+                                buf.put_slice(&this.buf);
+                                this.buf = Vec::new();
+                            }
                             return Poll::Ready(Ok(()));
                         }
                     }
